@@ -18,28 +18,27 @@ typedef struct mutex {
 
 /**
  * @brief Initialise the mutex
- * @param mutex_t* mut, Pointer to the mutex
 */
-void Init (mutex_t* mut);
+mutex_t Init_Mutex ();
 
 /**
  * @brief Get an access. Note that this is a blocking function
  * @param mutex_t* mut, Pointer to the mutex
  * @param bool wSet, true if you need a get/set access, else false (only get access)
 */
-void Acquire (mutex_t* mut, bool wSet);
+void Acquire_Mutex (mutex_t* mut, bool wSet);
 
 /**
  * @brief Release an access
  * @param mutex_t* mut, Pointer to the mutex
  * @param bool wSet, true if it was a get/set access, else false (only get access)
 */
-void Release (mutex_t* mut, bool wSet);
+void Release_Mutex (mutex_t* mut, bool wSet);
 
 /**
  * @brief Destroy a mutex
  * @param mutex_t* mut, Pointer to the mutex
 */
-void Destroy (mutex_t* mut);
+void Free_Mutex (mutex_t* mut);
 
 #endif  // MUTEX_H

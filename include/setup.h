@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <pthread.h>
+#include <time.h>
 #include <sys/ptrace.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -20,11 +21,9 @@
 #include "webserver.h"
 
 #define UNUSED(expr) do { (void) (expr); } while (0)
-
 #define LONG_SIZE sizeof (long)
 #define CHAR_SIZE sizeof (char)
-
-// https://blog.rchapman.org/posts/Linux_System_Call_Table_for_x86_64/
+#define SHOW_MEM_INTERVAL_uS 5 * 1e6
 
 void Peek_Memory (pid_t pid, uintptr_t addr, char *buf, size_t len) {
     char* buf_tmp = buf;
@@ -50,10 +49,10 @@ void Peek_Memory (pid_t pid, uintptr_t addr, char *buf, size_t len) {
         data.val = ptrace (PTRACE_PEEKDATA, pid, addr + offset, NULL);
         memcpy (buf_tmp, data.chars, rest);
     }
-    buf [len] = '\0';
+    // buf [len] = '\0';
 }
 
-void Trace (pid_t child, mem_array_t* child_mem) {
+void Trace (pid_t child, mem_array_t* child_mem, mutex_t* child_mem_mut) {
     int status;
     struct user_regs_struct regs;
     int insyscall = 0;
@@ -78,7 +77,9 @@ void Trace (pid_t child, mem_array_t* child_mem) {
                     if (regs.rax > 0) {
                         mem.addr = regs.rax;
                         mem.len = regs.rsi;
+                        Acquire_Mutex (child_mem_mut, true);
                         Append_Mem_Array (child_mem, mem);
+                        Release_Mutex (child_mem_mut, true);
                     }
 
                     // print it
@@ -104,8 +105,14 @@ void Trace (pid_t child, mem_array_t* child_mem) {
                 } else {
                     /* Syscall exit */
                     if (regs.rax == 0) {
+                        Acquire_Mutex (child_mem_mut, false);
                         idx_int = Find_Addr_Mem_Array (child_mem, regs.rdi);
-                        if (idx_int >= 0) Remove_Mem_Array (child_mem, (size_t) idx_int);
+                        Release_Mutex (child_mem_mut, false);
+                        if (idx_int >= 0) {
+                            Acquire_Mutex (child_mem_mut, true);
+                            Remove_Mem_Array (child_mem, (size_t) idx_int);
+                            Release_Mutex (child_mem_mut, true);
+                        }
                     }
                     printf ("returned %s (%lld)\n", (regs.rax == 0) ? "success" : "error", regs.rax);
                     insyscall = 0;
@@ -147,8 +154,38 @@ void Trace (pid_t child, mem_array_t* child_mem) {
 
 }
 
-// void* Show_Mem (void* args) {
-//     mem_array_t* child_mem = (mem_array_t*) args;
-// }
+struct display_mem_args {
+    pid_t child;
+    webserver_t* ws;
+    mem_array_t* child_mem;
+    mutex_t* child_mem_mut;
+};
+
+void* Display_Mem (void* args) {
+    pid_t child = ((struct display_mem_args*) args)->child;
+    webserver_t* ws = ((struct display_mem_args*) args)->ws;
+    mem_array_t* child_mem = ((struct display_mem_args*) args)->child_mem;
+    mutex_t* child_mem_mut = ((struct display_mem_args*) args)->child_mem_mut;
+
+    struct timespec tic;
+    struct timespec tac;
+    size_t len;
+
+    while (1) {
+        clock_gettime (CLOCK_REALTIME, &tic);
+
+        Acquire_Mutex (child_mem_mut, false);
+        char* data = Serialized_Mem_Array (child_mem, &len, child);
+        Release_Mutex (child_mem_mut, false);
+        if (data) {
+            Send_Webserver (ws, data, len);
+        }
+        free (data);
+
+        clock_gettime (CLOCK_REALTIME, &tac);
+        usleep ((__useconds_t) (SHOW_MEM_INTERVAL_uS - (double) (((tac.tv_nsec - tic.tv_nsec) > 0) ? (tac.tv_nsec - tic.tv_nsec) : 0) * 1e-3));
+    }
+
+}
 
 #endif  // SETUP_H

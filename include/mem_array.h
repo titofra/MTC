@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 
 #define ARR_CAPACITY_INIT 100
 #define ARR_CAPACITY_INCREASE 100
@@ -30,6 +31,8 @@ mem_t* Get_Mem_Array (mem_array_t *arr, size_t i);
 void Remove_Mem_Array (mem_array_t *arr, size_t i);
 
 int Find_Addr_Mem_Array (mem_array_t *arr, uintptr_t addr);
+
+char* Serialized_Mem_Array (mem_array_t *arr, size_t* len, pid_t pid);
 
 void Free_Mem_Array (mem_array_t *arr);
 
