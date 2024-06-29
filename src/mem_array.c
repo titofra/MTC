@@ -71,10 +71,7 @@ char* Serialized_Mem_Array (mem_array_t *arr, size_t* len, pid_t pid) {
         offset += sizeof (size_t);
 
         // content
-        char* buf = (char*) malloc (cur_mem->len * sizeof (char));
-        Peek_Memory (pid, cur_mem->addr, buf, cur_mem->len);
-        memcpy (&data [offset], (const char*) buf, cur_mem->len * sizeof (char));
-        free (buf);
+        Peek_Memory (pid, cur_mem->addr, &data [offset], cur_mem->len);
         offset += cur_mem->len * sizeof (char);
 
         cur_mem += MEM_t_SIZE;
